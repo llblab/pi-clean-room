@@ -1,0 +1,46 @@
+{
+  "name": "@llblab/pi-clean-room",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Launch an isolated Pi TUI with only explicitly selected extensions",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "clean-room",
+    "testing",
+    "isolation"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "node --experimental-strip-types -e \"await import('./index.ts'); console.log('pi-clean-room: extension import ok')\"",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "audit": "npm audit --omit=peer",
+    "pack:dry": "npm pack --dry-run",
+    "validate": "npm run typecheck && npm run test && npm run check && npm run audit && npm run pack:dry"
+  },
+  "files": [
+    "index.ts",
+    "README.md",
+    "AGENTS.md",
+    "BACKLOG.md",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest"
+  }
+}
