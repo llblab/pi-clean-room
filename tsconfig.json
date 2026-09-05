@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["index.ts", "test/**/*.ts"]
+  "include": ["index.ts", "tests/**/*.ts"]
 }

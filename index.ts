@@ -10,6 +10,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 const EMPTY_COMPONENT = { render: () => [], invalidate: () => {} };
+const EXTENSION_SUFFIXES = [".ts", ".js", ".mts", ".mjs", ".cts", ".cjs"];
 
 export function discoverExtensionNames(cwd: string, agentDir = getAgentDir()): string[] {
 	const roots = [join(agentDir, "extensions"), join(cwd, CONFIG_DIR_NAME, "extensions")];
@@ -18,9 +19,8 @@ export function discoverExtensionNames(cwd: string, agentDir = getAgentDir()): s
 		if (!existsSync(root)) continue;
 		for (const entry of readdirSync(root, { withFileTypes: true })) {
 			if (entry.isDirectory()) names.add(entry.name);
-			if (entry.isFile() && /\.[cm]?[jt]s$/.test(entry.name)) {
-				names.add(entry.name.replace(/\.[cm]?[jt]s$/, ""));
-			}
+			const suffix = EXTENSION_SUFFIXES.find((suffix) => entry.name.endsWith(suffix));
+			if (entry.isFile() && suffix) names.add(entry.name.slice(0, -suffix.length));
 		}
 	}
 	return [...names].sort();
@@ -32,7 +32,7 @@ export function resolveExtension(source: string, cwd: string, agentDir = getAgen
 
 	const roots = [join(cwd, CONFIG_DIR_NAME, "extensions"), join(agentDir, "extensions")];
 	for (const root of roots) {
-		for (const candidate of [join(root, source), join(root, `${source}.ts`), join(root, `${source}.js`)]) {
+		for (const candidate of [join(root, source), ...EXTENSION_SUFFIXES.map((suffix) => join(root, `${source}${suffix}`))]) {
 			if (existsSync(candidate)) return candidate;
 		}
 	}
@@ -73,11 +73,12 @@ export function buildCleanRoomArgs(
 
 	const systemPath = join(agentDir, "SYSTEM.md");
 	args.push("--system-prompt", resources.has("system") && existsSync(systemPath) ? readFileSync(systemPath, "utf8") : "");
+	const appendPaths: string[] = [];
 	for (const [resource, file] of [["agents", "AGENTS.md"], ["append-system", "APPEND_SYSTEM.md"]] as const) {
 		const path = join(agentDir, file);
-		if (resources.has(resource) && existsSync(path)) args.push("--append-system-prompt", path);
+		if (resources.has(resource) && existsSync(path)) appendPaths.push(path);
 	}
-	if (!resources.has("agents") && !resources.has("append-system")) args.push("--append-system-prompt", "");
+	for (const path of appendPaths.length > 0 ? appendPaths : [""]) args.push("--append-system-prompt", path);
 
 	if (model) args.push("--model", `${model.provider}/${model.id}`);
 	if (thinkingLevel) args.push("--thinking", thinkingLevel);
@@ -94,7 +95,7 @@ function launchCleanRoom(
 	extensionPaths: string[],
 	resources: ReadonlySet<ResourceArgument>,
 	skills: string[],
-): number | null {
+) {
 	const args = buildCleanRoomArgs(extensionPaths, ctx.model, ctx.thinkingLevel, resources, getAgentDir(), skills);
 	const cliEntry = process.argv[1];
 	const command = cliEntry && existsSync(cliEntry) ? process.execPath : "pi";
@@ -104,7 +105,7 @@ function launchCleanRoom(
 		cwd: ctx.cwd,
 		env: process.env,
 		stdio: "inherit",
-	}).status;
+	});
 }
 
 export default function cleanRoomExtension(pi: ExtensionAPI) {
@@ -153,18 +154,25 @@ export default function cleanRoomExtension(pi: ExtensionAPI) {
 				return;
 			}
 
+			let failure: string | undefined;
 			await ctx.ui.custom<void>((tui, _theme, _keybindings, done) => {
 				tui.stop();
-				process.stdout.write("\x1b[2J\x1b[H");
-				const status = launchCleanRoom(ctx, paths, resources, skills);
-				tui.start();
-				tui.requestRender(true);
-				done();
-				if (status !== 0 && status !== null) {
-					queueMicrotask(() => ctx.ui.notify(`pi-clean-room exited with code ${status}`, "error"));
+				try {
+					process.stdout.write("\x1b[2J\x1b[H");
+					const result = launchCleanRoom(ctx, paths, resources, skills);
+					if (result.error) failure = `pi-clean-room failed to start: ${result.error.message}`;
+					else if (result.signal) failure = `pi-clean-room terminated by ${result.signal}`;
+					else if (result.status !== 0) failure = `pi-clean-room exited with code ${result.status ?? "unknown"}`;
+				} catch (error) {
+					failure = `pi-clean-room failed: ${error instanceof Error ? error.message : String(error)}`;
+				} finally {
+					tui.start();
+					tui.requestRender(true);
+					done();
 				}
 				return EMPTY_COMPONENT;
 			});
+			if (failure) ctx.ui.notify(failure, "error");
 		},
 	});
 }

@@ -1,6 +1,6 @@
 {
   "name": "@llblab/pi-clean-room",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Launch an isolated Pi TUI with only explicitly selected extensions",
   "keywords": [
@@ -13,12 +13,17 @@
   ],
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/llblab/pi-clean-room.git"
+  },
+  "homepage": "https://github.com/llblab/pi-clean-room",
   "engines": {
     "node": ">=22.19.0"
   },
   "scripts": {
     "check": "node --experimental-strip-types -e \"await import('./index.ts'); console.log('pi-clean-room: extension import ok')\"",
-    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "audit": "npm audit --omit=peer",
     "pack:dry": "npm pack --dry-run",
@@ -26,6 +31,7 @@
   },
   "files": [
     "index.ts",
+    "banner.jpg",
     "README.md",
     "AGENTS.md",
     "BACKLOG.md",
@@ -34,7 +40,8 @@
   "pi": {
     "extensions": [
       "./index.ts"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/llblab/pi-clean-room/main/banner.jpg"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
