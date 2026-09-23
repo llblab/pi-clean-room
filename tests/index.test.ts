@@ -74,6 +74,31 @@ test("resolveExtension prefers project-local extensions over global extensions",
 	assert.equal(resolveExtension("sample", cwd, agentDir), local);
 });
 
+test("resolves installed npm extension packages by name with project-local precedence", () => {
+	const root = mkdtempSync(join(tmpdir(), "pi-clean-room-npm-"));
+	const cwd = join(root, "project");
+	const agentDir = join(root, "agent");
+	for (const base of [join(cwd, ".pi", "npm", "node_modules"), join(agentDir, "npm", "node_modules")]) {
+		for (const name of ["pi-awesome-extension", "@example/extension"]) {
+			const directory = join(base, name);
+			mkdirSync(directory, { recursive: true });
+			writeFileSync(join(directory, "package.json"), JSON.stringify({ name, pi: { extensions: ["./src/index.ts"] } }));
+		}
+	}
+	assert.equal(resolveExtension("pi-awesome-extension", cwd, agentDir), join(cwd, ".pi", "npm", "node_modules", "pi-awesome-extension"));
+	assert.equal(resolveExtension("@example/extension", cwd, agentDir), join(cwd, ".pi", "npm", "node_modules", "@example/extension"));
+	const globalOnly = join(agentDir, "npm", "node_modules", "global-only");
+	mkdirSync(globalOnly);
+	writeFileSync(join(globalOnly, "package.json"), JSON.stringify({ name: "global-only", pi: { extensions: ["./index.ts"] } }));
+	assert.equal(resolveExtension("global-only", cwd, agentDir), globalOnly);
+	assert.equal(resolveExtension("../pi-awesome-extension", cwd, agentDir), undefined);
+	assert.ok(discoverExtensionNames(cwd, agentDir).includes("pi-awesome-extension"));
+	assert.ok(discoverExtensionNames(cwd, agentDir).includes("@example/extension"));
+	const local = join(cwd, ".pi", "extensions", "pi-awesome-extension");
+	mkdirSync(local, { recursive: true });
+	assert.equal(resolveExtension("pi-awesome-extension", cwd, agentDir), local);
+});
+
 test("discovers directory and source-file extension names", () => {
 	const root = mkdtempSync(join(tmpdir(), "pi-clean-room-"));
 	const cwd = join(root, "project");

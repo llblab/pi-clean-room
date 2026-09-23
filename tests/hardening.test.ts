@@ -51,6 +51,44 @@ test("every discovered source suffix resolves by name with project-local precede
 	assert.deepEqual(discoverExtensionNames(cwd, agent), suffixes.map((suffix) => `sample-${suffix}`).sort());
 });
 
+test("child does not inherit a model from a parent-only provider", async (t) => {
+	const launches: string[][] = [];
+	const spawnMock = t.mock.method(childProcess, "spawnSync", (_command: string, args: readonly string[]) => {
+		launches.push([...args]);
+		return { status: 0, signal: null };
+	});
+	syncBuiltinESMExports();
+	t.after(() => { spawnMock.mock.restore(); syncBuiltinESMExports(); });
+	let handler!: Parameters<ExtensionAPI["registerCommand"]>[1]["handler"];
+	cleanRoom({ registerCommand(_name, options) { handler = options.handler; } } as ExtensionAPI);
+	const ctx = {
+		mode: "tui",
+		cwd: process.cwd(),
+		model: { provider: "extension-provider", id: "model" },
+		thinkingLevel: "high",
+		modelRegistry: { getRegisteredProviderIds: () => ["extension-provider"] },
+		scopedModels: [
+			{ model: { provider: "builtin-provider", id: "valid" } },
+			{ model: { provider: "extension-provider", id: "model" } },
+		],
+		ui: {
+			async custom(factory: (tui: { stop(): void; start(): void; requestRender(full: boolean): void }, theme: undefined, keybindings: undefined, done: () => void) => unknown) {
+				factory({ stop() {}, start() {}, requestRender() {} }, undefined, undefined, () => {});
+			},
+		},
+	};
+	await handler("", ctx as unknown as ExtensionCommandContext);
+	assert.ok(!launches[0].includes("--model"));
+	assert.deepEqual(launches[0].slice(launches[0].indexOf("--models"), launches[0].indexOf("--models") + 2), ["--models", "builtin-provider/valid"]);
+	assert.deepEqual(launches[0].slice(launches[0].indexOf("--thinking"), launches[0].indexOf("--thinking") + 2), ["--thinking", "high"]);
+	ctx.model.provider = "builtin-provider";
+	await handler("", ctx as unknown as ExtensionCommandContext);
+	assert.deepEqual(launches[1].slice(launches[1].indexOf("--model"), launches[1].indexOf("--model") + 2), ["--model", "builtin-provider/model"]);
+	ctx.scopedModels = [{ model: { provider: "extension-provider", id: "model" } }];
+	await handler("", ctx as unknown as ExtensionCommandContext);
+	assert.ok(!launches[2].includes("--models"));
+});
+
 test("terminal ownership is restored before reporting each child outcome", async (t) => {
 	const outcomes = [
 		{ name: "success", result: { status: 0, signal: null }, message: undefined },
@@ -76,6 +114,7 @@ test("terminal ownership is restored before reporting each child outcome", async
 			const ctx = {
 				mode: "tui",
 				cwd: process.cwd(),
+				modelRegistry: { getRegisteredProviderIds: () => [] },
 				ui: {
 					async custom(factory: (
 						tui: { stop(): void; start(): void; requestRender(full: boolean): void },

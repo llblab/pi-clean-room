@@ -12,6 +12,40 @@ import {
 const EMPTY_COMPONENT = { render: () => [], invalidate: () => {} };
 const EXTENSION_SUFFIXES = [".ts", ".js", ".mts", ".mjs", ".cts", ".cjs"];
 
+function npmPackageRoots(cwd: string, agentDir: string): string[] {
+	return [join(cwd, CONFIG_DIR_NAME, "npm", "node_modules"), join(agentDir, "npm", "node_modules")];
+}
+
+function installedExtensionPackage(name: string, root: string): string | undefined {
+	if (!/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/.test(name) || name === "." || name === "..") return undefined;
+	const path = join(root, name);
+	try {
+		const manifest = JSON.parse(readFileSync(join(path, "package.json"), "utf8"));
+		if (manifest.name !== name) return undefined;
+		if (Array.isArray(manifest.pi?.extensions) && manifest.pi.extensions.length > 0) return path;
+		if (!manifest.pi && existsSync(join(path, "extensions"))) return path;
+	} catch {
+		// Missing or invalid npm package manifest.
+	}
+	return undefined;
+}
+
+function discoverInstalledExtensionNames(cwd: string, agentDir: string): string[] {
+	const names = new Set<string>();
+	for (const root of npmPackageRoots(cwd, agentDir)) {
+		if (!existsSync(root)) continue;
+		for (const entry of readdirSync(root, { withFileTypes: true })) {
+			if (entry.name.startsWith("@") && entry.isDirectory()) {
+				for (const child of readdirSync(join(root, entry.name), { withFileTypes: true })) {
+					const name = `${entry.name}/${child.name}`;
+					if (child.isDirectory() && installedExtensionPackage(name, root)) names.add(name);
+				}
+			} else if (entry.isDirectory() && installedExtensionPackage(entry.name, root)) names.add(entry.name);
+		}
+	}
+	return [...names];
+}
+
 export function discoverExtensionNames(cwd: string, agentDir = getAgentDir()): string[] {
 	const roots = [join(agentDir, "extensions"), join(cwd, CONFIG_DIR_NAME, "extensions")];
 	const names = new Set<string>();
@@ -23,6 +57,7 @@ export function discoverExtensionNames(cwd: string, agentDir = getAgentDir()): s
 			if (entry.isFile() && suffix) names.add(entry.name.slice(0, -suffix.length));
 		}
 	}
+	for (const name of discoverInstalledExtensionNames(cwd, agentDir)) names.add(name);
 	return [...names].sort();
 }
 
@@ -35,6 +70,10 @@ export function resolveExtension(source: string, cwd: string, agentDir = getAgen
 		for (const candidate of [join(root, source), ...EXTENSION_SUFFIXES.map((suffix) => join(root, `${source}${suffix}`))]) {
 			if (existsSync(candidate)) return candidate;
 		}
+	}
+	for (const root of npmPackageRoots(cwd, agentDir)) {
+		const path = installedExtensionPackage(source, root);
+		if (path) return path;
 	}
 	return undefined;
 }
@@ -96,7 +135,12 @@ function launchCleanRoom(
 	resources: ReadonlySet<ResourceArgument>,
 	skills: string[],
 ) {
-	const args = buildCleanRoomArgs(extensionPaths, ctx.model, ctx.thinkingLevel, resources, getAgentDir(), skills);
+	// Providers registered by parent extensions may not exist in the isolated child.
+	const extensionProviders = new Set(ctx.modelRegistry.getRegisteredProviderIds());
+	const model = ctx.model && !extensionProviders.has(ctx.model.provider) ? ctx.model : undefined;
+	const scopedModels = ctx.scopedModels?.filter(({ model }) => !extensionProviders.has(model.provider));
+	const args = buildCleanRoomArgs(extensionPaths, model, ctx.thinkingLevel, resources, getAgentDir(), skills);
+	if (scopedModels?.length) args.push("--models", scopedModels.map(({ model }) => `${model.provider}/${model.id}`).join(","));
 	const cliEntry = process.argv[1];
 	const command = cliEntry && existsSync(cliEntry) ? process.execPath : "pi";
 	const commandArgs = cliEntry && existsSync(cliEntry) ? [cliEntry, ...args] : args;

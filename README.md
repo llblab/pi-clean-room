@@ -6,7 +6,7 @@ Launch a fresh, isolated Pi TUI with only the extensions you explicitly select. 
 
 ## Installation
 
-Requirements: Pi `0.84.4–0.84.x` and Node.js `22.19.0` or newer.
+Requirements: Pi `0.84.4` or newer and Node.js `22.19.0` or newer.
 
 Install from npm:
 
@@ -32,6 +32,7 @@ Install or load this extension, then run:
 /clean-room skills agents system append-system
 /clean-room skills pi-extension-name pi-actors
 /clean-room skills/brain-storm
+/clean-room pi-awesome-extension
 ```
 
 Arguments may be extension names or resource switches:
@@ -42,9 +43,9 @@ Arguments may be extension names or resource switches:
 - `system` — use `~/.pi/agent/SYSTEM.md`
 - `append-system` — include `~/.pi/agent/APPEND_SYSTEM.md`
 
-Extension names are resolved from the global or project-local extensions directory. Absolute and working-directory-relative extension paths are also accepted. Project-local names take precedence over global names. Source-file names resolve consistently across `.ts`, `.js`, `.mts`, `.mjs`, `.cts`, and `.cjs`.
+Extension names are resolved from project-local extensions first, then global extensions, then locally installed npm Pi packages (project-local before global). For example, `/clean-room pi-awesome-extension` loads that package's declared extension entries without loading its other resources. Absolute and working-directory-relative extension paths are also accepted. Source-file names resolve consistently across `.ts`, `.js`, `.mts`, `.mjs`, `.cts`, and `.cjs`.
 
-The nested Pi starts in the current working directory with the current model and thinking level. All optional resources are disabled unless named explicitly. Pi's built-in system prompt and built-in tools remain available. Missing selected global prompt files contribute no content; unselected prompt files remain excluded.
+The nested Pi starts in the current working directory with the current thinking level. It retains the current model unless that model's provider was registered by a parent extension, which may not be loaded in the clean room; in that case Pi selects an available model. Model-cycling scope is inherited from the parent's resolved available models, excluding providers registered by parent-only extensions. When the filtered scope is nonempty, invalid or excluded-provider patterns are not forwarded to the child. `/model` shows all models available in the child; use it to choose a provider loaded by a named extension even when that provider is not in the inherited scope. Built-in model providers remain available without extensions. All optional resources are disabled unless named explicitly. Pi's built-in system prompt and built-in tools remain available. Missing selected global prompt files contribute no content; unselected prompt files remain excluded.
 
 Exit the nested TUI normally with `Ctrl+D` to return to the parent session. Launch failures and signal termination are reported after restoring the parent TUI.
 

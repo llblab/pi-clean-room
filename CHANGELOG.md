@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0: Named npm extensions and isolated model selection
+
+- Launch installed npm extensions by package name, including scoped packages, without exposing their other resources to the clean room.
+- Start clean rooms from extension-backed parent models without failing on excluded providers; when a built-in model scope remains, pass only its valid entries to avoid child startup warnings from stale patterns.
+
 ## 0.1.1: Isolation and terminal recovery fixes
 
 - Keep unselected append-system context excluded when selected global prompt files are missing.
