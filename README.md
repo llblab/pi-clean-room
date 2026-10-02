@@ -6,7 +6,7 @@ Launch a fresh, isolated Pi TUI with only the extensions you explicitly select. 
 
 ## Installation
 
-Requirements: Pi `0.84.4` or newer and Node.js `22.19.0` or newer.
+Requirements: Pi `1.0.0` or newer and Node.js `22.19.0` or newer.
 
 Install from npm:
 

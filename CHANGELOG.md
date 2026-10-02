@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0: Pi 1.0 Baseline and Package Licensing
+
+- `Licensing`: Includes the MIT LICENSE in source checkouts and npm packages, preserving existing author attribution.
+- Requires Pi 1.0.0 or newer; peer metadata, dependency locks and compatibility tests share that baseline. Clean-room isolation, selected resources and parent terminal recovery are unchanged.
+
 ## 0.2.0: Named npm extensions and isolated model selection
 
 - Launch installed npm extensions by package name, including scoped packages, without exposing their other resources to the clean room.

@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { tmpdir } from "node:os";
 import { mkdtempSync } from "node:fs";
 import { buildCleanRoomArgs, discoverExtensionNames, resolveExtension, resolveSkill } from "../index.ts";
+
+test("package declares the Pi 1.0.0 host floor", () => {
+	const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+	assert.equal(pkg.peerDependencies["@earendil-works/pi-coding-agent"], ">=1.0.0");
+});
 
 test("buildCleanRoomArgs disables discovered behavioral resources and custom system prompts", () => {
 	assert.deepEqual(
