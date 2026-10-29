@@ -1,6 +1,6 @@
 {
   "name": "@llblab/pi-clean-room",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": false,
   "description": "Launch an isolated Pi TUI with only explicitly selected extensions",
   "keywords": [

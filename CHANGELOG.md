@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1: Extension-owned skill selection
+
+- Accept a bundled skill when its owning extension is also allowlisted, regardless of argument order, and prefer it over a same-named standalone skill. When the owner is missing, suggest its `/clean-room` command without enabling it implicitly or loading unrelated skills.
+- Accept equivalent separators for explicit skill selection while keeping completion unchanged.
+
 ## 0.3.0: Pi 1.0 Baseline and Package Licensing
 
 - `Licensing`: Includes the MIT LICENSE in source checkouts and npm packages, preserving existing author attribution.

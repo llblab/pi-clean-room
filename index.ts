@@ -1,12 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import {
 	CONFIG_DIR_NAME,
 	getAgentDir,
 	type ExtensionAPI,
 	type ExtensionCommandContext,
+	type SlashCommandInfo,
 } from "@earendil-works/pi-coding-agent";
 
 const EMPTY_COMPONENT = { render: () => [], invalidate: () => {} };
@@ -94,6 +95,27 @@ export function resolveSkill(name: string, cwd: string, agentDir = getAgentDir()
 	return undefined;
 }
 
+function isWithin(path: string, root: string): boolean {
+	return path === root || path.startsWith(`${root}${sep}`);
+}
+
+function resolveBundledSkill(name: string, extensions: string[], commands: SlashCommandInfo[]): string | undefined {
+	const skill = commands.find((command) => command.source === "skill" && command.name === `skill:${name}`);
+	if (!skill || !existsSync(skill.sourceInfo.path)) return undefined;
+	const skillPath = realpathSync(skill.sourceInfo.path);
+	const baseDir = skill.sourceInfo.baseDir;
+	const owner = baseDir && existsSync(baseDir) ? realpathSync(baseDir) : undefined;
+	const allowed = extensions.some((extension) => {
+		const path = realpathSync(extension);
+		if (statSync(path).isDirectory()) return isWithin(skillPath, path) || (owner !== undefined && isWithin(owner, path));
+		if (!owner) return false;
+		if (skill.sourceInfo.origin === "package") return isWithin(path, owner);
+		const source = `extension:${basename(extension).replace(/\.(ts|js)$/, "")}`;
+		return skill.sourceInfo.source === source && owner === realpathSync(dirname(extension));
+	});
+	return allowed ? skill.sourceInfo.path : undefined;
+}
+
 export const RESOURCE_ARGUMENTS = ["skills", "agents", "system", "append-system"] as const;
 type ResourceArgument = (typeof RESOURCE_ARGUMENTS)[number];
 
@@ -126,7 +148,7 @@ export function buildCleanRoomArgs(
 }
 
 function parseNames(args: string): string[] {
-	return args.trim().split(/\s+/).filter(Boolean);
+	return args.trim().split(/\s+/).filter(Boolean).map((name) => name.replace(/^skills::?/, "skills/"));
 }
 
 function launchCleanRoom(
@@ -177,19 +199,27 @@ export default function cleanRoomExtension(pi: ExtensionAPI) {
 			));
 			const skillNames = names.filter((name) => name.startsWith("skills/")).map((name) => name.slice("skills/".length));
 			const extensionNames = names.filter((name) => !resources.has(name as ResourceArgument) && !name.startsWith("skills/"));
-			const missingSkills: string[] = [];
-			const skills = skillNames.map((name) => {
-				const path = resolveSkill(name, ctx.cwd);
-				if (!path) missingSkills.push(name);
-				return path;
-			}).filter((path): path is string => path !== undefined);
 			const missingExtensions: string[] = [];
 			const paths = extensionNames.map((name) => {
 				const path = resolveExtension(name, ctx.cwd);
 				if (!path) missingExtensions.push(name);
 				return path;
 			}).filter((path): path is string => path !== undefined);
+			const commands = skillNames.length > 0 ? pi.getCommands() : [];
+			const missingSkills: string[] = [];
+			const skills = skillNames.map((name) => {
+				const path = resolveBundledSkill(name, paths, commands) ?? resolveSkill(name, ctx.cwd);
+				if (!path) missingSkills.push(name);
+				return path;
+			}).filter((path): path is string => path !== undefined);
 			if (missingSkills.length > 0) {
+				const candidates = discoverExtensionNames(ctx.cwd).map((name) => ({ name, path: resolveExtension(name, ctx.cwd) }));
+				for (const name of missingSkills) {
+					const owner = candidates.find(({ path }) => path && resolveBundledSkill(name, [path], commands));
+					if (!owner) continue;
+					ctx.ui.notify(`Skill ${name} belongs to ${owner.name}; use /clean-room ${owner.name}`, "error");
+					return;
+				}
 				ctx.ui.notify(`Unknown skill${missingSkills.length > 1 ? "s" : ""}: ${missingSkills.join(", ")}`, "error");
 				return;
 			}
